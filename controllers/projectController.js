@@ -2,14 +2,14 @@ const Project = require("../models/Project");
 const { validationResult } = require("express-validator");
 
 exports.createProject = async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
 
   try {
+
+    const { name, description } = req.body;
+
     const project = await Project.create({
-      ...req.body,
+      name,
+      description,
       createdBy: req.user.id,
     });
 
@@ -17,23 +17,36 @@ exports.createProject = async (req, res) => {
       message: "Project Created",
       project,
     });
+
   } catch (error) {
+
+    console.log(error);
+
     res.status(500).json({
-      message: error.message,
+      message: "Error creating project",
     });
   }
 };
 
-exports.getProjects = async (req, res) => {
+exports.getProjects = async (
+  req,
+  res
+) => {
+
   try {
-    const projects = await Project.find()
-      .populate("createdBy", "name email")
-      .populate("members", "name email");
+
+    const projects =
+      await Project.find({
+        createdBy: req.user.id,
+      });
 
     res.status(200).json(projects);
+
   } catch (error) {
+
     res.status(500).json({
-      message: error.message,
+      message:
+        "Failed to fetch projects",
     });
   }
 };
@@ -173,3 +186,4 @@ exports.removeMember = async (req, res) => {
     });
   }
 };
+
