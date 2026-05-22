@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+
 import {
   FaTasks,
   FaProjectDiagram,
@@ -7,11 +8,13 @@ import {
   FaPlus,
   FaClock,
   FaHourglassEnd,
-  FaEdit,
   FaTrash,
 } from "react-icons/fa";
+
 import { motion } from "framer-motion";
+
 import { API } from "../api/axios";
+
 import ProjectModal from "./ProjectModal";
 import TaskModal from "./TaskModal";
 
@@ -26,7 +29,6 @@ interface Task {
   title: string;
   description: string;
   status: "Pending" | "In Progress" | "Completed";
-  projectId?: string;
 }
 
 interface Stats {
@@ -35,379 +37,552 @@ interface Stats {
   completedTasks: number;
 }
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-      delayChildren: 0.2,
-    },
+const statusConfig = {
+  Completed: {
+    color: "bg-green-500/10 border-green-500/30",
+    textColor: "text-green-400",
+    icon: FaCheckCircle,
+  },
+
+  "In Progress": {
+    color: "bg-blue-500/10 border-blue-500/30",
+    textColor: "text-blue-400",
+    icon: FaClock,
+  },
+
+  Pending: {
+    color: "bg-yellow-500/10 border-yellow-500/30",
+    textColor: "text-yellow-400",
+    icon: FaHourglassEnd,
   },
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
-
-const statusConfig = {
-  "Completed": { color: "bg-green-500/20", textColor: "text-green-400", icon: FaCheckCircle },
-  "In Progress": { color: "bg-blue-500/20", textColor: "text-blue-400", icon: FaClock },
-  "Pending": { color: "bg-yellow-500/20", textColor: "text-yellow-400", icon: FaHourglassEnd },
-};
-
 export default function Dashboard() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [stats, setStats] = useState<Stats>({ totalProjects: 0, totalTasks: 0, completedTasks: 0 });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [projectModalOpen, setProjectModalOpen] = useState(false);
-  const [taskModalOpen, setTaskModalOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<any>(null);
+
+  const [projects, setProjects] =
+    useState<Project[]>([]);
+
+  const [tasks, setTasks] =
+    useState<Task[]>([]);
+
+  const [stats, setStats] =
+    useState<Stats>({
+      totalProjects: 0,
+      totalTasks: 0,
+      completedTasks: 0,
+    });
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [error, setError] =
+    useState("");
+
+  const [projectModalOpen, setProjectModalOpen] =
+    useState(false);
+
+  const [taskModalOpen, setTaskModalOpen] =
+    useState(false);
 
   useEffect(() => {
     fetchData();
   }, []);
 
   const fetchData = async () => {
+
     try {
-      const token = localStorage.getItem("token");
+
+      setLoading(true);
+
+      const token =
+        localStorage.getItem("token");
+
       if (!token) {
-        setError("No auth token found");
+
+        setError("No token found");
+
+        setLoading(false);
+
         return;
       }
 
-      const headers = { Authorization: `Bearer ${token}` };
+      const headers = {
+        Authorization: `Bearer ${token}`,
+      };
 
-      const [projectsRes, tasksRes] = await Promise.all([
-        API.get("/projects", { headers }),
-        API.get("/tasks", { headers }),
-      ]);
+      let projectsData: Project[] = [];
+      let tasksData: Task[] = [];
 
-      const projectsData = projectsRes.data || [];
-      const tasksData = tasksRes.data || [];
+      // FETCH PROJECTS
+
+      try {
+
+        const projectsRes =
+          await API.get(
+            "/projects",
+            { headers }
+          );
+
+        projectsData =
+          projectsRes.data || [];
+
+      } catch (error) {
+
+        console.log(
+          "Projects API failed",
+          error
+        );
+      }
+
+      // FETCH TASKS
+
+      try {
+
+        const tasksRes =
+          await API.get(
+            "/tasks",
+            { headers }
+          );
+
+        tasksData =
+          tasksRes.data || [];
+
+      } catch (error) {
+
+        console.log(
+          "Tasks API failed",
+          error
+        );
+      }
 
       setProjects(projectsData);
+
       setTasks(tasksData);
 
-      const completed = tasksData.filter((t: Task) => t.status === "Completed").length;
+      const completed =
+        tasksData.filter(
+          (task: Task) =>
+            task.status === "Completed"
+        ).length;
+
       setStats({
-        totalProjects: projectsData.length,
-        totalTasks: tasksData.length,
-        completedTasks: completed,
+        totalProjects:
+          projectsData.length,
+
+        totalTasks:
+          tasksData.length,
+
+        completedTasks:
+          completed,
       });
-    } catch (err: any) {
-      console.error("Error fetching data:", err);
-      setError(err.response?.data?.message || "Failed to fetch data");
+
+    } catch (err) {
+
+      console.log(err);
+
+      setError(
+        "Failed to load dashboard"
+      );
+
     } finally {
+
       setLoading(false);
     }
   };
 
-  const handleDeleteTask = async (taskId: string) => {
-    if (!window.confirm("Are you sure you want to delete this task?")) return;
+  const handleDeleteTask = async (
+    taskId: string
+  ) => {
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
 
-      await API.delete(`/tasks/${taskId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const token =
+        localStorage.getItem("token");
 
-      setTasks(tasks.filter((t) => t._id !== taskId));
-      const newCompleted = tasks.filter((t) => t._id !== taskId && t.status === "Completed").length;
-      setStats((prev) => ({
-        ...prev,
-        totalTasks: prev.totalTasks - 1,
-        completedTasks: newCompleted,
-      }));
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to delete task");
+      await API.delete(
+        `/tasks/${taskId}`,
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
+      );
+
+      fetchData();
+
+    } catch (err) {
+
+      console.log(err);
     }
   };
 
-  const handleUpdateTaskStatus = async (taskId: string, newStatus: "Pending" | "In Progress" | "Completed") => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
+  const handleUpdateTaskStatus =
+    async (
+      taskId: string,
+      status: string
+    ) => {
 
-      const updatedTask = await API.put(`/tasks/${taskId}`, { status: newStatus }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      try {
 
-      setTasks(tasks.map((t) => (t._id === taskId ? { ...t, status: newStatus } : t)));
+        const token =
+          localStorage.getItem("token");
 
-      const newCompleted = tasks
-        .map((t) => (t._id === taskId ? { ...t, status: newStatus } : t))
-        .filter((t) => t.status === "Completed").length;
+        await API.put(
+          `/tasks/${taskId}`,
+          { status },
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
 
-      setStats((prev) => ({
-        ...prev,
-        completedTasks: newCompleted,
-      }));
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to update task");
-    }
-  };
+        fetchData();
+
+      } catch (err) {
+
+        console.log(err);
+      }
+    };
 
   const handleLogout = () => {
+
     localStorage.removeItem("token");
+
     window.location.reload();
   };
 
-  const getStatusIcon = (status: string) => {
-    const config = statusConfig[status as keyof typeof statusConfig];
-    return config?.icon || FaTasks;
-  };
-
   if (loading) {
+
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity }}
-          className="text-4xl"
-        >
-          ⚙️
-        </motion.div>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-white text-4xl">
+        ⚙️ Loading Dashboard...
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white flex">
-      {/* Animated Gradients */}
-      <div className="fixed w-96 h-96 bg-purple-500/10 blur-3xl rounded-full top-20 left-0"></div>
-      <div className="fixed w-96 h-96 bg-blue-500/10 blur-3xl rounded-full bottom-20 right-0"></div>
 
-      {/* Sidebar - Project Navigation */}
-      <motion.aside
-        initial={{ x: -300 }}
-        animate={{ x: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-72 bg-white/5 backdrop-blur-xl border-r border-white/10 p-6 overflow-y-auto"
-      >
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col md:flex-row overflow-hidden">
+
+      {/* Sidebar */}
+
+      <aside className="hidden md:flex md:w-72 flex-col bg-white/5 border-r border-white/10 backdrop-blur-xl p-6 overflow-y-auto">
+
         <div className="flex items-center justify-between mb-10">
-          <h1 className="text-3xl font-bold">🚀 TaskFlow</h1>
+
+          <h1 className="text-4xl font-bold">
+            🚀 TaskFlow
+          </h1>
+
           <button
             onClick={handleLogout}
-            className="p-2 hover:bg-red-500/20 rounded-lg transition-all"
-            title="Logout"
+            className="hover:text-red-400 transition"
           >
             <FaSignOutAlt />
           </button>
+
         </div>
 
-        <nav className="space-y-4 mb-10">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            className="w-full text-left px-4 py-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30 transition-all"
-          >
+        {/* Navigation */}
+
+        <div className="space-y-4">
+
+          <button className="w-full text-left px-4 py-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30">
             📊 Dashboard
-          </motion.button>
+          </button>
 
-          <motion.button whileHover={{ scale: 1.05 }} className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/10 transition-all">
+          <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/10 transition">
             📁 Projects ({projects.length})
-          </motion.button>
+          </button>
 
-          <motion.button whileHover={{ scale: 1.05 }} className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/10 transition-all">
+          <button className="w-full text-left px-4 py-3 rounded-xl hover:bg-white/10 transition">
             ✓ Tasks ({tasks.length})
-          </motion.button>
-        </nav>
+          </button>
 
-        {/* Projects List */}
-        <div>
+        </div>
+
+        {/* Recent Projects */}
+
+        <div className="mt-10">
+
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-bold text-slate-400 uppercase">Recent Projects</h3>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              onClick={() => setProjectModalOpen(true)}
-              className="cursor-pointer hover:text-indigo-400 transition-colors"
+
+            <h3 className="text-sm uppercase text-slate-400 font-bold">
+              Recent Projects
+            </h3>
+
+            <button
+              onClick={() =>
+                setProjectModalOpen(true)
+              }
+              className="hover:text-indigo-400"
             >
               <FaPlus />
-            </motion.button>
+            </button>
+
           </div>
 
-          <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-3">
-            {projects.length === 0 ? (
-              <p className="text-slate-500 text-sm">No projects yet</p>
-            ) : (
-              projects.slice(0, 5).map((project) => (
-                <motion.div
-                  key={project._id}
-                  variants={itemVariants}
-                  whileHover={{ x: 8 }}
-                  className="p-3 rounded-lg bg-white/5 hover:bg-white/10 cursor-pointer border border-white/5 transition-all"
-                >
-                  <p className="text-sm font-semibold truncate">{project.name}</p>
-                  <p className="text-xs text-slate-400 truncate">{project.description}</p>
-                </motion.div>
-              ))
-            )}
-          </motion.div>
+          <div className="space-y-3">
+
+            {projects.map((project) => (
+
+              <div
+                key={project._id}
+                className="bg-white/5 border border-white/10 rounded-xl p-3 hover:bg-white/10 transition"
+              >
+
+                <h4 className="text-white font-medium">
+                  {project.name}
+                </h4>
+
+                <p className="text-slate-400 text-xs mt-1 truncate">
+                  {project.description}
+                </p>
+
+              </div>
+
+            ))}
+
+          </div>
+
         </div>
-      </motion.aside>
+
+      </aside>
 
       {/* Main Content */}
-      <main className="flex-1 p-8 overflow-y-auto relative z-10">
-        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <h2 className="text-5xl font-bold mb-2">Dashboard</h2>
-          <p className="text-slate-400 mb-10">Welcome back 👋 Here's your project overview</p>
-        </motion.div>
+
+      <main className="flex-1 h-screen overflow-y-auto p-4 md:p-8">
+
+        {/* Header */}
+
+        <div className="mb-10">
+
+          <h2 className="text-3xl md:text-6xl font-bold mb-2">
+            Dashboard
+          </h2>
+
+          <p className="text-slate-400">
+            Welcome back 👋 Here's your productivity overview
+          </p>
+
+        </div>
+
+        {/* Error */}
 
         {error && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-300">
+
+          <div className="mb-6 bg-red-500/20 border border-red-500/40 p-4 rounded-xl text-red-300">
             {error}
-          </motion.div>
+          </div>
+
         )}
 
-        {/* Stats Grid */}
-        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid md:grid-cols-3 gap-6 mb-12">
-          <motion.div variants={itemVariants} whileHover={{ scale: 1.05, y: -5 }} className="bg-gradient-to-br from-purple-500/20 to-purple-600/10 border border-purple-500/30 rounded-3xl p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-slate-300 mb-2">Total Projects</h3>
-                <p className="text-5xl font-bold">{stats.totalProjects}</p>
-              </div>
-              <FaProjectDiagram className="text-4xl text-purple-400/40" />
-            </div>
-          </motion.div>
+        {/* Stats */}
 
-          <motion.div variants={itemVariants} whileHover={{ scale: 1.05, y: -5 }} className="bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30 rounded-3xl p-6 backdrop-blur-xl">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-slate-300 mb-2">Total Tasks</h3>
-                <p className="text-5xl font-bold">{stats.totalTasks}</p>
-              </div>
-              <FaTasks className="text-4xl text-blue-400/40" />
-            </div>
-          </motion.div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
 
-          <motion.div variants={itemVariants} whileHover={{ scale: 1.05, y: -5 }} className="bg-gradient-to-br from-green-500/20 to-green-600/10 border border-green-500/30 rounded-3xl p-6 backdrop-blur-xl">
+          <div className="rounded-3xl p-6 bg-purple-500/10 border border-purple-500/30">
+
             <div className="flex items-center justify-between">
+
               <div>
-                <h3 className="text-slate-300 mb-2">Completed</h3>
-                <p className="text-5xl font-bold">{stats.completedTasks}</p>
-                <p className="text-sm text-slate-400 mt-1">
-                  {stats.totalTasks > 0 ? Math.round((stats.completedTasks / stats.totalTasks) * 100) : 0}% completion
+
+                <p className="text-slate-300">
+                  Total Projects
                 </p>
+
+                <h3 className="text-5xl font-bold mt-2">
+                  {stats.totalProjects}
+                </h3>
+
               </div>
-              <FaCheckCircle className="text-4xl text-green-400/40" />
+
+              <FaProjectDiagram className="text-4xl text-purple-400/50" />
+
             </div>
-          </motion.div>
-        </motion.div>
 
-        {/* Tasks Section */}
-        <div>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-bold">📋 Your Tasks</h3>
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => {
-                setEditingTask(null);
-                setTaskModalOpen(true);
-              }}
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all"
-            >
-              <FaPlus /> New Task
-            </motion.button>
-          </motion.div>
+          </div>
 
-          {tasks.length === 0 ? (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
-              <p className="text-slate-400 text-lg">No tasks yet. Create your first task! 🎯</p>
-            </motion.div>
-          ) : (
-            <motion.div variants={containerVariants} initial="hidden" animate="visible" className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tasks.map((task, index) => {
-                const config = statusConfig[task.status as keyof typeof statusConfig];
-                const StatusIcon = getStatusIcon(task.status);
+          <div className="rounded-3xl p-6 bg-blue-500/10 border border-blue-500/30">
 
-                return (
-                  <motion.div
-                    key={task._id}
-                    variants={itemVariants}
-                    whileHover={{ y: -8, boxShadow: "0 20px 50px rgba(139, 92, 246, 0.3)" }}
-                    className={`${config.color} border border-white/10 rounded-2xl p-6 backdrop-blur-xl cursor-pointer transition-all hover:border-white/20`}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h4 className="text-lg font-bold truncate">{task.title}</h4>
-                        <p className="text-sm text-slate-300 mt-1 line-clamp-2">{task.description}</p>
-                      </div>
-                      <StatusIcon className={`${config.textColor} text-lg ml-2`} />
-                    </div>
+            <div className="flex items-center justify-between">
 
-                    <div className="flex items-center justify-between pt-4 border-t border-white/10 mb-4">
-                      <motion.select
-                        whileHover={{ scale: 1.05 }}
-                        value={task.status}
-                        onChange={(e) =>
-                          handleUpdateTaskStatus(
-                            task._id,
-                            e.target.value as "Pending" | "In Progress" | "Completed"
-                          )
-                        }
-                        className={`${config.textColor} px-3 py-1 rounded-full text-xs font-bold bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition-all`}
-                      >
-                        <option value="Pending">Pending</option>
-                        <option value="In Progress">In Progress</option>
-                        <option value="Completed">Completed</option>
-                      </motion.select>
-                      <span className="text-xs text-slate-400">#{index + 1}</span>
-                    </div>
+              <div>
 
-                    <div className="flex gap-2">
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => {
-                          setEditingTask(task);
-                          setTaskModalOpen(true);
-                        }}
-                        className="flex-1 py-2 bg-white/10 hover:bg-indigo-500/30 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all"
-                      >
-                        <FaEdit /> Edit
-                      </motion.button>
+                <p className="text-slate-300">
+                  Total Tasks
+                </p>
 
-                      <motion.button
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={() => handleDeleteTask(task._id)}
-                        className="flex-1 py-2 bg-red-500/10 hover:bg-red-500/30 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all"
-                      >
-                        <FaTrash /> Delete
-                      </motion.button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          )}
+                <h3 className="text-5xl font-bold mt-2">
+                  {stats.totalTasks}
+                </h3>
+
+              </div>
+
+              <FaTasks className="text-4xl text-blue-400/50" />
+
+            </div>
+
+          </div>
+
+          <div className="rounded-3xl p-6 bg-green-500/10 border border-green-500/30">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-slate-300">
+                  Completed
+                </p>
+
+                <h3 className="text-5xl font-bold mt-2">
+                  {stats.completedTasks}
+                </h3>
+
+              </div>
+
+              <FaCheckCircle className="text-4xl text-green-400/50" />
+
+            </div>
+
+          </div>
+
         </div>
+
+        {/* Tasks Header */}
+
+        <div className="flex items-center justify-between mb-6">
+
+          <h3 className="text-3xl font-bold">
+            📋 Your Tasks
+          </h3>
+
+          <button
+            onClick={() =>
+              setTaskModalOpen(true)
+            }
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-xl font-semibold hover:scale-105 transition flex items-center gap-2"
+          >
+            <FaPlus />
+            New Task
+          </button>
+
+        </div>
+
+        {/* Tasks */}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pb-20">
+
+          {tasks.map((task, index) => {
+
+            const config =
+              statusConfig[
+                task.status as keyof typeof statusConfig
+              ];
+
+            const StatusIcon =
+              config.icon;
+
+            return (
+
+              <motion.div
+                whileHover={{ y: -5 }}
+                key={task._id}
+                className={`${config.color} border rounded-3xl p-6 min-h-[280px] backdrop-blur-xl`}
+              >
+
+                <div className="flex items-start justify-between mb-4">
+
+                  <div>
+
+                    <h4 className="text-xl font-bold">
+                      {task.title}
+                    </h4>
+
+                    <p className="text-slate-300 mt-2 line-clamp-3">
+                      {task.description}
+                    </p>
+
+                  </div>
+
+                  <StatusIcon
+                    className={`${config.textColor} text-xl`}
+                  />
+
+                </div>
+
+                <div className="flex items-center justify-between mt-6 mb-4">
+
+                  <select
+                    value={task.status}
+                    onChange={(e) =>
+                      handleUpdateTaskStatus(
+                        task._id,
+                        e.target.value
+                      )
+                    }
+                    className="bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm"
+                  >
+
+                    <option value="Pending">
+                      Pending
+                    </option>
+
+                    <option value="In Progress">
+                      In Progress
+                    </option>
+
+                    <option value="Completed">
+                      Completed
+                    </option>
+
+                  </select>
+
+                  <span className="text-slate-400 text-sm">
+                    #{index + 1}
+                  </span>
+
+                </div>
+
+                <button
+                  onClick={() =>
+                    handleDeleteTask(task._id)
+                  }
+                  className="w-full py-3 rounded-xl bg-red-500/10 hover:bg-red-500/30 transition flex items-center justify-center gap-2"
+                >
+                  <FaTrash />
+                  Delete
+                </button>
+
+              </motion.div>
+            );
+          })}
+
+        </div>
+
       </main>
 
       {/* Modals */}
+
       <ProjectModal
         isOpen={projectModalOpen}
-        onClose={() => setProjectModalOpen(false)}
+        onClose={() =>
+          setProjectModalOpen(false)
+        }
         onProjectCreated={fetchData}
       />
 
       <TaskModal
         isOpen={taskModalOpen}
-        onClose={() => {
-          setTaskModalOpen(false);
-          setEditingTask(null);
-        }}
+        onClose={() =>
+          setTaskModalOpen(false)
+        }
         onTaskCreated={fetchData}
-        taskId={editingTask?._id}
-        initialData={editingTask}
       />
+
     </div>
   );
 }

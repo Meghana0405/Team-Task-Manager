@@ -1,279 +1,324 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { FaPlus, FaTimes } from "react-icons/fa";
+import { useEffect, useState } from "react";
 import { API } from "../api/axios";
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onTaskCreated: () => void;
+}
 
 interface Project {
   _id: string;
   name: string;
 }
 
-interface User {
-  _id: string;
-  name: string;
-}
+export default function TaskModal({
+  isOpen,
+  onClose,
+  onTaskCreated,
+}: Props) {
 
-interface TaskModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onTaskCreated: () => void;
-  taskId?: string;
-  initialData?: any;
-}
-
-export default function TaskModal({ isOpen, onClose, onTaskCreated, taskId, initialData }: TaskModalProps) {
   const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [assignedTo, setAssignedTo] = useState("");
-  const [status, setStatus] = useState("Pending");
-  const [dueDate, setDueDate] = useState("");
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [description, setDescription] =
+    useState("");
+
+  const [status, setStatus] =
+    useState("Pending");
+
+  const [project, setProject] =
+    useState("");
+
+  const [projects, setProjects] =
+    useState<Project[]>([]);
+
+  const [loading, setLoading] =
+    useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      fetchData();
-      if (initialData) {
-        setTitle(initialData.title || "");
-        setDescription(initialData.description || "");
-        setProjectId(initialData.projectId?._id || "");
-        setAssignedTo(initialData.assignedTo?._id || "");
-        setStatus(initialData.status || "Pending");
-        setDueDate(initialData.dueDate ? initialData.dueDate.split("T")[0] : "");
+
+    const fetchProjects = async () => {
+
+      try {
+
+        const token =
+          localStorage.getItem("token");
+
+        const res = await API.get(
+          "/projects",
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+
+        const projectData =
+          res.data || [];
+
+        setProjects(projectData);
+
+      } catch (error) {
+
+        console.log(error);
       }
+    };
+
+    if (isOpen) {
+      fetchProjects();
     }
+
   }, [isOpen]);
 
-  const fetchData = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) return;
+  if (!isOpen) return null;
 
-      const headers = { Authorization: `Bearer ${token}` };
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
 
-      const [projectsRes, usersRes] = await Promise.all([
-        API.get("/projects", { headers }),
-        API.get("/auth/users", { headers }).catch(() => ({ data: [] })),
-      ]);
-
-      setProjects(projectsRes.data || []);
-      setUsers(usersRes.data || []);
-    } catch (err: any) {
-      console.error("Failed to fetch data:", err);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError("");
+
+    if (!project) {
+      alert(
+        "Please select a project"
+      );
+      return;
+    }
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("No auth token found");
-        return;
-      }
 
-      const headers = { Authorization: `Bearer ${token}` };
-      const taskData = {
-        title,
-        description,
-        projectId,
-        assignedTo: assignedTo || undefined,
-        status,
-        dueDate: dueDate || undefined,
-      };
+      setLoading(true);
 
-      if (taskId) {
-        await API.put(`/tasks/${taskId}`, taskData, { headers });
-      } else {
-        await API.post("/tasks", taskData, { headers });
-      }
+      const token =
+        localStorage.getItem("token");
 
-      resetForm();
+      await API.post(
+        "/tasks",
+        {
+          title,
+          description,
+          status,
+          project,
+        },
+        {
+          headers: {
+            Authorization:
+              `Bearer ${token}`,
+          },
+        }
+      );
+
+      alert("Task Created 🚀");
+
+      setTitle("");
+      setDescription("");
+      setStatus("Pending");
+      setProject("");
+
       onTaskCreated();
+
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to save task");
+
+    } catch (error: any) {
+
+      console.log(
+        error.response?.data
+      );
+
+      alert(
+        error.response?.data?.message ||
+        "Failed to save task"
+      );
+
     } finally {
+
       setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setTitle("");
-    setDescription("");
-    setProjectId("");
-    setAssignedTo("");
-    setStatus("Pending");
-    setDueDate("");
-  };
-
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-40"
-          />
 
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 rounded-2xl p-8 w-full max-w-lg z-50 shadow-2xl max-h-[90vh] overflow-y-auto"
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto">
+
+      <div className="w-full max-w-2xl bg-slate-900 border border-white/10 rounded-3xl p-8">
+
+        {/* Header */}
+
+        <div className="flex items-center justify-between mb-8">
+
+          <h2 className="text-4xl font-bold text-white">
+            ➕ Create Task
+          </h2>
+
+          <button
+            onClick={onClose}
+            className="text-3xl text-slate-400 hover:text-white transition"
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <FaPlus className="text-blue-400" /> {taskId ? "Edit Task" : "New Task"}
-              </h2>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            ×
+          </button>
+
+        </div>
+
+        {/* Form */}
+
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
+
+          {/* Task Title */}
+
+          <div>
+
+            <label className="text-slate-300">
+              Task Title
+            </label>
+
+            <input
+              type="text"
+              required
+              value={title}
+              onChange={(e) =>
+                setTitle(e.target.value)
+              }
+              className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none"
+              placeholder="Enter task title"
+            />
+
+          </div>
+
+          {/* Description */}
+
+          <div>
+
+            <label className="text-slate-300">
+              Description
+            </label>
+
+            <textarea
+              value={description}
+              onChange={(e) =>
+                setDescription(
+                  e.target.value
+                )
+              }
+              className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none min-h-[140px]"
+              placeholder="Enter task description"
+            />
+
+          </div>
+
+          {/* Grid */}
+
+          <div className="grid md:grid-cols-2 gap-6">
+
+            {/* Project Dropdown */}
+
+            <div>
+
+              <label className="text-slate-300">
+                Select Project
+              </label>
+
+              <select
+                required
+                value={project}
+                onChange={(e) =>
+                  setProject(
+                    e.target.value
+                  )
+                }
+                className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none"
               >
-                <FaTimes className="text-white" />
-              </button>
+
+                <option value="">
+                  Choose Project
+                </option>
+
+                {projects.map((p) => (
+
+                  <option
+                    key={p._id}
+                    value={p._id}
+                  >
+                    {p.name}
+                  </option>
+
+                ))}
+
+              </select>
+
             </div>
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm"
+            {/* Status */}
+
+            <div>
+
+              <label className="text-slate-300">
+                Status
+              </label>
+
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(
+                    e.target.value
+                  )
+                }
+                className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none"
               >
-                {error}
-              </motion.div>
-            )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-slate-300 text-sm font-medium mb-2">
-                  Task Title *
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="Enter task title"
-                  required
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all"
-                />
-              </div>
+                <option value="Pending">
+                  Pending
+                </option>
 
-              <div>
-                <label className="block text-slate-300 text-sm font-medium mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Enter task description"
-                  rows={3}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all resize-none"
-                />
-              </div>
+                <option value="In Progress">
+                  In Progress
+                </option>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-2">
-                    Project *
-                  </label>
-                  <select
-                    value={projectId}
-                    onChange={(e) => setProjectId(e.target.value)}
-                    required
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all"
-                  >
-                    <option value="">Select project</option>
-                    {projects.map((proj) => (
-                      <option key={proj._id} value={proj._id}>
-                        {proj.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <option value="Completed">
+                  Completed
+                </option>
 
-                <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-2">
-                    Status
-                  </label>
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all"
-                  >
-                    <option value="Pending">Pending</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
-              </div>
+              </select>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-2">
-                    Assign To
-                  </label>
-                  <select
-                    value={assignedTo}
-                    onChange={(e) => setAssignedTo(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all"
-                  >
-                    <option value="">Not assigned</option>
-                    {users.map((user) => (
-                      <option key={user._id} value={user._id}>
-                        {user.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            </div>
 
-                <div>
-                  <label className="block text-slate-300 text-sm font-medium mb-2">
-                    Due Date
-                  </label>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all"
-                  />
-                </div>
-              </div>
+          </div>
 
-              <div className="flex gap-3 pt-4">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                >
-                  {loading ? "Saving..." : taskId ? "Update Task" : "Create Task"}
-                </motion.button>
+          {/* Empty Projects Warning */}
 
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 py-3 rounded-lg bg-white/10 text-white font-semibold hover:bg-white/20 transition-all"
-                >
-                  Cancel
-                </motion.button>
-              </div>
-            </form>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+          {projects.length === 0 && (
+
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-yellow-300">
+              ⚠️ No projects found.
+              Please create a project first.
+            </div>
+
+          )}
+
+          {/* Submit */}
+
+          <button
+            type="submit"
+            disabled={
+              loading || projects.length === 0
+            }
+            className={`w-full py-4 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold text-lg transition-all ${
+              loading
+                ? "opacity-70"
+                : "hover:scale-[1.02]"
+            }`}
+          >
+            {loading
+              ? "Creating..."
+              : "Create Task"}
+          </button>
+
+        </form>
+
+      </div>
+
+    </div>
   );
 }

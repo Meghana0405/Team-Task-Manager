@@ -1,142 +1,229 @@
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { FaPlus, FaTimes } from "react-icons/fa";
 import { API } from "../api/axios";
 
-interface ProjectModalProps {
+interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onProjectCreated: () => void;
+  onTaskCreated: () => void;
+  taskId?: string;
+  initialData?: any;
 }
 
-export default function ProjectModal({ isOpen, onClose, onProjectCreated }: ProjectModalProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+export default function TaskModal({
+  isOpen,
+  onClose,
+  onTaskCreated,
+  taskId,
+  initialData,
+}: Props) {
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const [title, setTitle] = useState(
+    initialData?.title || ""
+  );
+
+  const [description, setDescription] =
+    useState(
+      initialData?.description || ""
+    );
+
+  const [status, setStatus] = useState(
+    initialData?.status || "Pending"
+  );
+
+  const [projectId, setProjectId] =
+    useState("");
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
+
     e.preventDefault();
-    setLoading(true);
-    setError("");
 
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("No auth token found");
-        return;
+
+      const token =
+        localStorage.getItem("token");
+
+      const payload = {
+        title,
+        description,
+        status,
+        project: projectId,
+      };
+
+      if (taskId) {
+
+        await API.put(
+          `/tasks/${taskId}`,
+          payload,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
+
+      } else {
+
+        await API.post(
+          "/tasks",
+          payload,
+          {
+            headers: {
+              Authorization:
+                `Bearer ${token}`,
+            },
+          }
+        );
       }
 
-      await API.post(
-        "/projects",
-        { name, description },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      onTaskCreated();
 
-      setName("");
-      setDescription("");
-      onProjectCreated();
       onClose();
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to create project");
-    } finally {
-      setLoading(false);
+
+    } catch (error) {
+
+      console.log(error);
+
+      alert("Failed to save task");
     }
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/50 z-40"
-          />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
 
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-gradient-to-br from-slate-900 to-slate-800 border border-white/10 rounded-2xl p-8 w-full max-w-md z-50 shadow-2xl"
+      <div className="w-full max-w-2xl bg-slate-900 border border-white/10 rounded-3xl p-8">
+
+        <div className="flex items-center justify-between mb-8">
+
+          <h2 className="text-4xl font-bold text-white">
+            ➕ New Task
+          </h2>
+
+          <button
+            onClick={onClose}
+            className="text-2xl text-slate-400 hover:text-white"
           >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                <FaPlus className="text-indigo-400" /> New Project
-              </h2>
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              >
-                <FaTimes className="text-white" />
-              </button>
+            ×
+          </button>
+
+        </div>
+
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-6"
+        >
+
+          <div>
+
+            <label className="text-slate-300">
+              Task Title
+            </label>
+
+            <input
+              type="text"
+              value={title}
+              onChange={(e) =>
+                setTitle(e.target.value)
+              }
+              className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none"
+              placeholder="Enter task title"
+              required
+            />
+
+          </div>
+
+          <div>
+
+            <label className="text-slate-300">
+              Description
+            </label>
+
+            <textarea
+              value={description}
+              onChange={(e) =>
+                setDescription(
+                  e.target.value
+                )
+              }
+              className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none min-h-[140px]"
+              placeholder="Enter description"
+            />
+
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-6">
+
+            <div>
+
+              <label className="text-slate-300">
+                Project ID
+              </label>
+
+              <input
+                type="text"
+                value={projectId}
+                onChange={(e) =>
+                  setProjectId(
+                    e.target.value
+                  )
+                }
+                className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none"
+                placeholder="Enter project id"
+              />
+
             </div>
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm"
+            <div>
+
+              <label className="text-slate-300">
+                Status
+              </label>
+
+              <select
+                value={status}
+                onChange={(e) =>
+                  setStatus(
+                    e.target.value
+                  )
+                }
+                className="w-full mt-2 bg-white/10 border border-white/10 rounded-xl px-4 py-4 text-white outline-none"
               >
-                {error}
-              </motion.div>
-            )}
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label className="block text-slate-300 text-sm font-medium mb-2">
-                  Project Name *
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter project name"
-                  required
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all"
-                />
-              </div>
+                <option value="Pending">
+                  Pending
+                </option>
 
-              <div>
-                <label className="block text-slate-300 text-sm font-medium mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Enter project description"
-                  rows={4}
-                  className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500/50 focus:bg-white/10 transition-all resize-none"
-                />
-              </div>
+                <option value="In Progress">
+                  In Progress
+                </option>
 
-              <div className="flex gap-3 pt-4">
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-3 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-                >
-                  {loading ? "Creating..." : "Create Project"}
-                </motion.button>
+                <option value="Completed">
+                  Completed
+                </option>
 
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 py-3 rounded-lg bg-white/10 text-white font-semibold hover:bg-white/20 transition-all"
-                >
-                  Cancel
-                </motion.button>
-              </div>
-            </form>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+              </select>
+
+            </div>
+
+          </div>
+
+          <button
+            type="submit"
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-bold text-lg hover:scale-[1.02] transition"
+          >
+            {taskId
+              ? "Update Task"
+              : "Create Task"}
+          </button>
+
+        </form>
+
+      </div>
+
+    </div>
   );
 }

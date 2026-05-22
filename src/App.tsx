@@ -1,55 +1,97 @@
 import { useState, useEffect } from "react";
-import { FaEnvelope, FaLock } from "react-icons/fa";
+import {
+  FaEnvelope,
+  FaLock,
+  FaUser,
+} from "react-icons/fa";
+
 import { API } from "./api/axios";
 import Dashboard from "./components/Dashboard";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(true);
+
+  const [isLogin, setIsLogin] = useState(true);
+
+  const [loggedIn, setLoggedIn] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
-      setIsAuthenticated(true);
+      setLoggedIn(true);
     }
-    setLoading(false);
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    password: "",
+  });
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmit = async (
+    e: React.FormEvent
+  ) => {
     e.preventDefault();
 
     try {
-      const res = await API.post("/auth/login", {
-        email,
-        password,
-      });
 
-      alert("Login Successful 🚀");
-      localStorage.setItem("token", res.data.token);
-      setIsAuthenticated(true);
-      setEmail("");
-      setPassword("");
+      const endpoint = isLogin
+        ? "/auth/login"
+        : "/auth/register";
+
+      const payload = isLogin
+        ? {
+            email: formData.email,
+            password: formData.password,
+          }
+        : formData;
+
+      const res = await API.post(
+        endpoint,
+        payload
+      );
+
+      alert(
+        isLogin
+          ? "Login Successful 🚀"
+          : "Signup Successful 🎉"
+      );
+
+      if (res.data.token) {
+
+        localStorage.setItem(
+          "token",
+          res.data.token
+        );
+
+        setLoggedIn(true);
+      }
+
     } catch (error: any) {
-      alert(error.response?.data?.message || "Login Failed");
+
+      console.log(error);
+
+      alert(
+        error.response?.data?.message ||
+        "Authentication Failed"
+      );
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center">
-        <div className="text-4xl animate-spin">⚙️</div>
-      </div>
-    );
-  }
-
-  if (isAuthenticated) {
+  if (loggedIn) {
     return <Dashboard />;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 flex items-center justify-center px-4 overflow-hidden">
 
       <div className="absolute w-72 h-72 bg-purple-500/20 blur-3xl rounded-full top-10 left-10"></div>
 
@@ -62,15 +104,45 @@ export default function App() {
         </h1>
 
         <p className="text-slate-300 text-center mb-8">
-          Manage projects and tasks beautifully
+          {isLogin
+            ? "Login to continue"
+            : "Create your account"}
         </p>
 
         <form
           className="space-y-5"
-          onSubmit={handleLogin}
+          onSubmit={handleSubmit}
         >
 
+          {!isLogin && (
+
+            <div>
+
+              <label className="text-slate-300 text-sm">
+                Name
+              </label>
+
+              <div className="flex items-center bg-white/10 border border-white/10 rounded-xl px-4 mt-2">
+
+                <FaUser className="text-slate-400" />
+
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Enter your name"
+                  className="w-full bg-transparent outline-none px-3 py-4 text-white placeholder:text-slate-400"
+                  value={formData.name}
+                  onChange={handleChange}
+                  required
+                />
+
+              </div>
+
+            </div>
+          )}
+
           <div>
+
             <label className="text-slate-300 text-sm">
               Email
             </label>
@@ -81,19 +153,20 @@ export default function App() {
 
               <input
                 type="email"
+                name="email"
                 placeholder="Enter your email"
                 className="w-full bg-transparent outline-none px-3 py-4 text-white placeholder:text-slate-400"
-                value={email}
-                onChange={(e) =>
-                  setEmail(e.target.value)
-                }
+                value={formData.email}
+                onChange={handleChange}
                 required
               />
 
             </div>
+
           </div>
 
           <div>
+
             <label className="text-slate-300 text-sm">
               Password
             </label>
@@ -104,28 +177,50 @@ export default function App() {
 
               <input
                 type="password"
+                name="password"
                 placeholder="Enter your password"
                 className="w-full bg-transparent outline-none px-3 py-4 text-white placeholder:text-slate-400"
-                value={password}
-                onChange={(e) =>
-                  setPassword(e.target.value)
-                }
+                value={formData.password}
+                onChange={handleChange}
                 required
               />
 
             </div>
+
           </div>
 
           <button
             type="submit"
             className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-semibold hover:scale-[1.02] transition-all duration-300 shadow-lg"
           >
-            Sign In
+            {isLogin
+              ? "Sign In"
+              : "Create Account"}
           </button>
 
         </form>
 
+        <p className="text-center text-slate-400 mt-6">
+
+          {isLogin
+            ? "Don't have an account?"
+            : "Already have an account?"}
+
+          <button
+            onClick={() =>
+              setIsLogin(!isLogin)
+            }
+            className="ml-2 text-indigo-400 hover:text-indigo-300"
+          >
+            {isLogin
+              ? "Signup"
+              : "Login"}
+          </button>
+
+        </p>
+
       </div>
+
     </div>
   );
 }
